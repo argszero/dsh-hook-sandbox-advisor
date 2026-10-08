@@ -1,0 +1,51 @@
+# The @argszero/dsh-hook-sandbox-advisor bundle patch: mount and go.
+#
+# One report (#9177) describes a hook that fails with `spawn EPERM` on Windows
+# while the same command succeeds as a tool call. The hook is not the variable:
+# the policy it runs under is.
+#
+# `@deepseek-ai/dsh-hook-protocol` executes command hooks through `ctx.shell`,
+# and the request its runner builds carries no `sandboxPolicy`
+# (packages/hooks/hook-protocol/src/runner.ts:77-84, with the stdin payload set
+# at :75):
+#
+#   const request = { command: hook.command, timeoutMs, stdin, signal, ... }
+#
+# The executors are explicit that this is what the fallback is for — "Tool calls
+# pass the calling session's resolved policy; direct calls fall back to
+# deployment policy" (packages/shell/bash-sandbox/src/index.ts:41-42 and
+# packages/shell/pwsh-sandbox/src/index.ts:46-47). So a hook is not merely
+# executed by a different caller than a tool call: it is confined by a different
+# POLICY, and by the deployment's rather than the session's.
+#
+# Two silent consequences follow from the same request:
+#
+#   - the mode. A session running wider than the deployment default
+#     (`workspace-write` per packages/bundle/base/cordis.patch.yml:232, or
+#     whatever `DSH_PERMISSION_MODE` sets) gets a hook confined to the narrower
+#     one. A hook that needs to spawn a child process, or to write outside the
+#     deployment's workspace root, fails here where the same command succeeds as
+#     a tool call — and the harness keeps only the hook's exit code, so the
+#     failure reads like any other non-zero exit.
+#   - the points with no record at all. `SessionStart`, `SubagentStart` and
+#     `SubagentStop` fire outside any turn, so no `hook/invoked` or
+#     `hook/result` is written for them and there is no session to notify.
+#
+# This patch mounts the advisor that names it, and changes no policy:
+#
+#   - it wraps `ctx.shell.execute` as an own property on the executor instance,
+#     which is what makes the bridge — reaching the executor through the same
+#     `ctx.shell` view it was injected with — land on the wrapper. Every hook
+#     run passes through there, and nothing else does.
+#   - a hook-shaped request (stdin set, no policy) is compared against the mode
+#     its session resolves to, and one durable notice per session names both
+#     modes, the outcome and a bounded stderr excerpt.
+#   - a run with no session is reported to the host log instead, so the points
+#     that have no durable record are still not silent.
+#
+# Which of "hooks inherit the session", "hooks run unconfined" or "hooks report
+# their confinement" is right is the maintainers' call. This plugin only reports.
+
+- insert:
+    - id: hook-sandbox-advisor
+      name: '@argszero/dsh-hook-sandbox-advisor'
