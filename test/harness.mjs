@@ -150,7 +150,13 @@ export async function world(spec = {}) {
   // property on the instance is only meaningful against the class's own method.
   const prototypeExecute = Object.getPrototypeOf(shell).execute
 
-  if (spec.plugin !== false) await ctx.plugin(plugin, spec.config ?? {})
+  if (spec.plugin !== false) {
+    // `plugin` is this module's namespace; a loader entry mounts its **default**
+    // export (`exports.default ?? exports`), and the two differ by the `Config` key.
+    // `plugin: 'default'` mounts the object a profile entry actually reaches — see
+    // test/mount.spec.mjs for the defect that difference hides.
+    await ctx.plugin(spec.plugin === 'default' ? plugin.default : plugin, spec.config ?? {})
+  }
   return {
     ctx,
     shell,

@@ -1,7 +1,7 @@
 {
   "name": "@argszero/dsh-hook-sandbox-advisor",
   "description": "Names the condition behind a hook that fails silently on a confined deployment. The harness executes command hooks through ctx.shell, and the request its hook bridge builds carries no sandbox policy, so the executor applies the deployment default rather than the session's — the executors document this as the contract for direct (non-tool) callers. A hook that needs to spawn a child process, or to write outside the deployment's workspace root, therefore fails where the same command succeeds as a tool call, and the harness reports only the hook's exit code. SessionStart, SubagentStart and SubagentStop are worse: they fire outside any turn, so no hook/invoked or hook/result record exists for them at all and the only trace of a failure is the bridge's own warn line. This plugin attaches to ctx.shell and reports, against the session's own resolved mode, what each hook run was actually confined to — one durable notice per session, and a host-log note for the points that have no session to notify. It changes no policy: which of 'hooks inherit the session', 'hooks run unconfined' or 'hooks report their confinement' is correct is a core decision.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publishConfig": {
     "access": "public"
   },
